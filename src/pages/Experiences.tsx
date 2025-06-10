@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,6 +28,8 @@ import {
   Building,
   TreePine,
 } from "lucide-react";
+import { analyticsService, EVENT_TYPES } from "@/services";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Mock data for experiences
 const experienceCategories = [
@@ -198,6 +200,15 @@ export const Experiences = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [experiences, setExperiences] = useState(mockExperiences);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // Track page view
+    const trackPageView = async () => {
+      await analyticsService.trackPageView(user?.id, { page: "experiences" });
+    };
+    trackPageView();
+  }, [user?.id]);
 
   const filteredExperiences = experiences.filter((experience) => {
     const matchesCategory =

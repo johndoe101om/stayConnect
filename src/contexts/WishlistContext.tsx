@@ -1,15 +1,22 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { wishlistService, analyticsService, EVENT_TYPES } from "@/services";
+import { Property, Wishlist } from "@/lib/types";
 import { useAuth } from "./AuthContext";
-import { Property } from "@/lib/types";
+import { toast } from "@/components/ui/use-toast";
 
 interface WishlistContextType {
   wishlistItems: Property[];
-  addToWishlist: (property: Property) => void;
-  removeFromWishlist: (propertyId: string) => void;
+  wishlists: Wishlist[];
+  loading: boolean;
+  addToWishlist: (property: Property, wishlistId?: string) => Promise<void>;
+  removeFromWishlist: (
+    propertyId: string,
+    wishlistId?: string,
+  ) => Promise<void>;
   isInWishlist: (propertyId: string) => boolean;
-  toggleWishlist: (property: Property) => void;
-  clearWishlist: () => void;
-  wishlistCount: number;
+  clearWishlist: (wishlistId?: string) => Promise<void>;
+  createWishlist: (name: string, description?: string) => Promise<Wishlist>;
+  refreshWishlists: () => Promise<void>;
 }
 
 const WishlistContext = createContext<WishlistContextType | undefined>(
@@ -27,79 +34,287 @@ export const useWishlist = () => {
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [wishlistItems, setWishlistItems] = useState<Property[]>([]);
   const { user } = useAuth();
+  const [wishlistItems, setWishlistItems] = useState<Property[]>([]);
+  const [wishlists, setWishlists] = useState<Wishlist[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Load wishlist from localStorage when user changes
+  // Load user's wishlists when authenticated
   useEffect(() => {
     if (user) {
-      const savedWishlist = localStorage.getItem(`wishlist_${user.id}`);
-      if (savedWishlist) {
-        try {
-          const parsed = JSON.parse(savedWishlist);
-          setWishlistItems(parsed);
-        } catch (error) {
-          console.error("Error loading wishlist:", error);
-          setWishlistItems([]);
-        }
-      }
+      refreshWishlists();
     } else {
+      setWishlists([]);
       setWishlistItems([]);
     }
   }, [user]);
 
-  // Save wishlist to localStorage when it changes
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem(
-        `wishlist_${user.id}`,
-        JSON.stringify(wishlistItems),
+  const refreshWishlists = async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+      const userWishlists = await wishlistService.getUserWishlists(user.id);
+      setWishlists(userWishlists);
+
+      // Get all properties from all wishlists for the main wishlist items
+      const allProperties: Property[] = [];
+      for (const wishlist of userWishlists) {
+        const wishlistWithProperties = await wishlistService.getWishlistById(
+          wishlist.id,
+          true,
+        );
+        if (wishlistWithProperties?.properties) {
+          allProperties.push(...wishlistWithProperties.properties);
+        }
+      }
+
+      // Remove duplicates
+      const uniqueProperties = allProperties.filter(
+        (property, index, self) =>
+          index === self.findIndex((p) => p.id === property.id),
+      );
+
+      setWishlistItems(uniqueProperties);
+    } catch (error) {
+      console.error("Error refreshing wishlists:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load wishlists",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getOrCreateDefaultWishlist = async (): Promise<string> => {
+    if (!user) throw new Error("User not authenticated");
+
+    // Check if user has a default wishlist
+    let defaultWishlist = wishlists.find((w) => w.name === "My Favorites");
+
+    if (!defaultWishlist) {
+      // Create default wishlist
+      defaultWishlist = await createWishlist(
+        "My Favorites",
+        "My favorite properties",
       );
     }
-  }, [wishlistItems, user]);
 
-  const addToWishlist = (property: Property) => {
+    return defaultWishlist.id;
+  };
+
+  const addToWishlist = async (property: Property, wishlistId?: string) => {
     if (!user) {
-      return; // Require authentication
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to save properties to your wishlist",
+      });
+      return;
     }
 
-    setWishlistItems((prev) => {
-      const exists = prev.find((item) => item.id === property.id);
-      if (!exists) {
-        return [...prev, property];
+    try {
+      let targetWishlistId = wishlistId;
+
+      if (!targetWishlistId) {
+        targetWishlistId = await getOrCreateDefaultWishlist();
       }
-      return prev;
-    });
+
+      await wishlistService.addPropertyToWishlist(
+        targetWishlistId,
+        property.id,
+      );
+
+      // Update local state
+      setWishlistItems((prev) => {
+        if (prev.find((p) => p.id === property.id)) return prev;
+        return [...prev, property];
+      });
+
+      // Track event
+      await analyticsService.trackEvent({
+        eventType: EVENT_TYPES.WISHLIST_ADD,
+        userId: user.id,
+        eventData: {
+          property_id: property.id,
+          wishlist_id: targetWishlistId,
+          property_title: property.title,
+        },
+      });
+
+      toast({
+        title: "Added to wishlist",
+        description: `${property.title} has been added to your wishlist`,
+      });
+
+      await refreshWishlists();
+    } catch (error) {
+      console.error("Error adding to wishlist:", error);
+      toast({
+        title: "Error",
+        description: "Failed to add property to wishlist",
+      });
+    }
   };
 
-  const removeFromWishlist = (propertyId: string) => {
-    setWishlistItems((prev) => prev.filter((item) => item.id !== propertyId));
+  const removeFromWishlist = async (
+    propertyId: string,
+    wishlistId?: string,
+  ) => {
+    if (!user) return;
+
+    try {
+      let targetWishlistId = wishlistId;
+
+      if (!targetWishlistId) {
+        // Find which wishlist contains this property
+        for (const wishlist of wishlists) {
+          const wishlistDetails = await wishlistService.getWishlistById(
+            wishlist.id,
+            true,
+          );
+          if (wishlistDetails?.properties?.find((p) => p.id === propertyId)) {
+            targetWishlistId = wishlist.id;
+            break;
+          }
+        }
+      }
+
+      if (!targetWishlistId) {
+        console.warn("Property not found in any wishlist");
+        return;
+      }
+
+      await wishlistService.removePropertyFromWishlist(
+        targetWishlistId,
+        propertyId,
+      );
+
+      // Update local state
+      setWishlistItems((prev) => prev.filter((p) => p.id !== propertyId));
+
+      // Track event
+      await analyticsService.trackEvent({
+        eventType: EVENT_TYPES.WISHLIST_REMOVE,
+        userId: user.id,
+        eventData: {
+          property_id: propertyId,
+          wishlist_id: targetWishlistId,
+        },
+      });
+
+      toast({
+        title: "Removed from wishlist",
+        description: "Property has been removed from your wishlist",
+      });
+
+      await refreshWishlists();
+    } catch (error) {
+      console.error("Error removing from wishlist:", error);
+      toast({
+        title: "Error",
+        description: "Failed to remove property from wishlist",
+      });
+    }
   };
 
-  const isInWishlist = (propertyId: string) => {
+  const isInWishlist = (propertyId: string): boolean => {
     return wishlistItems.some((item) => item.id === propertyId);
   };
 
-  const toggleWishlist = (property: Property) => {
-    if (isInWishlist(property.id)) {
-      removeFromWishlist(property.id);
-    } else {
-      addToWishlist(property);
+  const clearWishlist = async (wishlistId?: string) => {
+    if (!user) return;
+
+    try {
+      if (wishlistId) {
+        // Clear specific wishlist
+        const wishlistDetails = await wishlistService.getWishlistById(
+          wishlistId,
+          true,
+        );
+        if (wishlistDetails?.properties) {
+          for (const property of wishlistDetails.properties) {
+            await wishlistService.removePropertyFromWishlist(
+              wishlistId,
+              property.id,
+            );
+          }
+        }
+      } else {
+        // Clear all wishlists
+        for (const wishlist of wishlists) {
+          const wishlistDetails = await wishlistService.getWishlistById(
+            wishlist.id,
+            true,
+          );
+          if (wishlistDetails?.properties) {
+            for (const property of wishlistDetails.properties) {
+              await wishlistService.removePropertyFromWishlist(
+                wishlist.id,
+                property.id,
+              );
+            }
+          }
+        }
+      }
+
+      await refreshWishlists();
+
+      toast({
+        title: "Wishlist cleared",
+        description: "All items have been removed from your wishlist",
+      });
+    } catch (error) {
+      console.error("Error clearing wishlist:", error);
+      toast({
+        title: "Error",
+        description: "Failed to clear wishlist",
+      });
     }
   };
 
-  const clearWishlist = () => {
-    setWishlistItems([]);
+  const createWishlist = async (
+    name: string,
+    description?: string,
+  ): Promise<Wishlist> => {
+    if (!user) throw new Error("User not authenticated");
+
+    try {
+      const newWishlist = await wishlistService.createWishlist({
+        userId: user.id,
+        name,
+        description,
+        isPublic: false,
+      });
+
+      setWishlists((prev) => [...prev, newWishlist]);
+
+      toast({
+        title: "Wishlist created",
+        description: `${name} has been created`,
+      });
+
+      return newWishlist;
+    } catch (error) {
+      console.error("Error creating wishlist:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create wishlist",
+      });
+      throw error;
+    }
   };
 
   const value: WishlistContextType = {
     wishlistItems,
+    wishlists,
+    loading,
     addToWishlist,
     removeFromWishlist,
     isInWishlist,
-    toggleWishlist,
     clearWishlist,
-    wishlistCount: wishlistItems.length,
+    createWishlist,
+    refreshWishlists,
   };
 
   return (
