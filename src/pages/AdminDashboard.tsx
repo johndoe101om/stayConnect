@@ -1,514 +1,538 @@
-import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  AnalyticsChart,
-  StatusPieChart,
-} from "@/components/admin/AnalyticsChart";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { AnalyticsChart } from "@/components/admin/AnalyticsChart";
 import { BookingTable } from "@/components/admin/BookingTable";
 import {
-  CalendarIcon,
+  Users,
+  Home,
   DollarSign,
-  UsersIcon,
-  TrendingUpIcon,
-  HomeIcon,
-  MapPinIcon,
-  ActivityIcon,
-  BarChart3Icon,
+  TrendingUp,
+  Calendar,
+  MapPin,
+  Star,
+  Activity,
+  Download,
+  Filter,
+  RefreshCw,
 } from "lucide-react";
-import { mockBookings, mockProperties } from "@/lib/mockData";
-import {
-  calculateBookingAnalytics,
-  getBookingsByDay,
-  getBookingsByMonth,
-  getBookingsByYear,
-  generateExtendedMockBookings,
-} from "@/lib/analytics";
-import { CURRENCY_SYMBOL } from "@/lib/constants";
+import { adminService, analyticsService, EVENT_TYPES } from "@/services";
+import { AdminDashboardStats, AdminUser } from "@/services/adminService";
+import { useAuth } from "@/contexts/AuthContext";
+import { Property, Booking } from "@/lib/types";
+import { toast } from "@/components/ui/use-toast";
 
 const AdminDashboard = () => {
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
+  const [dashboardStats, setDashboardStats] =
+    useState<AdminDashboardStats | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Generate extended booking data for better analytics
-  const allBookings = useMemo(
-    () => generateExtendedMockBookings(mockBookings),
-    [],
-  );
+  useEffect(() => {
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
 
-  // Calculate analytics
-  const analytics = useMemo(
-    () => calculateBookingAnalytics(allBookings),
-    [allBookings],
-  );
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
 
-  // Time series data
-  const dailyData = useMemo(
-    () => getBookingsByDay(allBookings, selectedYear, selectedMonth),
-    [allBookings, selectedYear, selectedMonth],
-  );
-  const monthlyData = useMemo(
-    () => getBookingsByMonth(allBookings, selectedYear),
-    [allBookings, selectedYear],
-  );
-  const yearlyData = useMemo(
-    () => getBookingsByYear(allBookings),
-    [allBookings],
-  );
+      // Track admin dashboard access
+      await analyticsService.trackPageView(user?.id, {
+        page: "admin_dashboard",
+      });
 
-  // Recent bookings (last 30 days)
-  const recentBookings = useMemo(() => {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return allBookings
-      .filter((booking) => new Date(booking.createdAt) >= thirtyDaysAgo)
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-  }, [allBookings]);
+      // Fetch dashboard statistics
+      const stats = await adminService.getDashboardStats();
+      setDashboardStats(stats);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Prepare pie chart data
-  const statusChartData = analytics.bookingsByStatus.map((item) => ({
-    name: item.status,
-    value: item.count,
-    color:
-      item.status === "confirmed"
-        ? "#22c55e"
-        : item.status === "pending"
-          ? "#f59e0b"
-          : item.status === "cancelled"
-            ? "#ef4444"
-            : "#6b7280",
-  }));
+  const fetchTabData = async (tab: string) => {
+    try {
+      setRefreshing(true);
 
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
+      switch (tab) {
+        case "users":
+          const { users: userData } = await adminService.getUsers(1, 20);
+          setUsers(userData);
+          break;
+        case "properties":
+          const { properties: propertyData } = await adminService.getProperties(
+            1,
+            20,
+          );
+          setProperties(propertyData);
+          break;
+        case "bookings":
+          const { bookings: bookingData } = await adminService.getBookings(
+            1,
+            20,
+          );
+          setBookings(bookingData);
+          break;
+      }
+    } catch (error) {
+      console.error(`Error fetching ${tab} data:`, error);
+      toast({
+        title: "Error",
+        description: `Failed to load ${tab} data`,
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
-  const availableYears = [
-    ...new Set(
-      allBookings.map((booking) => new Date(booking.createdAt).getFullYear()),
-    ),
-  ];
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    if (["users", "properties", "bookings"].includes(value)) {
+      fetchTabData(value);
+    }
+  };
+
+  const handleVerifyUser = async (userId: string) => {
+    try {
+      await adminService.verifyUser(userId);
+      toast({
+        title: "Success",
+        description: "User verified successfully",
+      });
+      fetchTabData("users");
+    } catch (error) {
+      console.error("Error verifying user:", error);
+      toast({
+        title: "Error",
+        description: "Failed to verify user",
+      });
+    }
+  };
+
+  const handleExportData = async (
+    type: "users" | "properties" | "bookings" | "reviews",
+  ) => {
+    try {
+      const data = await adminService.exportData(type, "csv");
+
+      // Create and download file
+      const blob = new Blob([data], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${type}_export_${new Date().toISOString().split("T")[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Success",
+        description: `${type} data exported successfully`,
+      });
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to export data",
+      });
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col">
-     
-
-      <main className="flex-1 bg-gray-50">
-        <div className="container py-8">
-          {/* Admin Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                <BarChart3Icon className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold">Super Admin Dashboard</h1>
-                <p className="text-muted-foreground">
-                  Comprehensive analytics and booking management
-                </p>
-              </div>
-            </div>
-            <Badge variant="destructive" className="mb-4">
-              Admin Access Only
-            </Badge>
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Admin Dashboard
+            </h1>
+            <p className="text-gray-600">Manage your StayConnect platform</p>
           </div>
-
-          {/* Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Total Bookings
-                    </p>
-                    <p className="text-2xl font-bold">
-                      {analytics.totalBookings.toLocaleString()}
-                    </p>
-                    <p className="text-sm text-green-600">
-                      +12.5% from last month
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                    <CalendarIcon className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Total Revenue
-                    </p>
-                    <p className="text-2xl font-bold">
-                      {CURRENCY_SYMBOL}
-                      {analytics.totalRevenue.toLocaleString()}
-                    </p>
-                    <p className="text-sm text-green-600">
-                      +18.2% from last month
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                    <DollarSign className="h-6 w-6 text-green-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Active Properties
-                    </p>
-                    <p className="text-2xl font-bold">
-                      {mockProperties.length}
-                    </p>
-                    <p className="text-sm text-blue-600">+3 new this month</p>
-                  </div>
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                    <HomeIcon className="h-6 w-6 text-purple-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Occupancy Rate
-                    </p>
-                    <p className="text-2xl font-bold">
-                      {analytics.occupancyRate.toFixed(1)}%
-                    </p>
-                    <p className="text-sm text-orange-600">
-                      +5.3% from last month
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <TrendingUpIcon className="h-6 w-6 text-orange-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={() => fetchDashboardData()}
+              disabled={refreshing}
+            >
+              <RefreshCw
+                className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
+            <Button variant="outline" onClick={() => handleExportData("users")}>
+              <Download className="h-4 w-4 mr-2" />
+              Export Data
+            </Button>
           </div>
+        </div>
 
-          {/* Analytics Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="daily">Daily Analytics</TabsTrigger>
-              <TabsTrigger value="monthly">Monthly Analytics</TabsTrigger>
-              <TabsTrigger value="yearly">Yearly Analytics</TabsTrigger>
-            </TabsList>
+        <Tabs
+          value={activeTab}
+          onValueChange={handleTabChange}
+          className="space-y-6"
+        >
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="properties">Properties</TabsTrigger>
+            <TabsTrigger value="bookings">Bookings</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          </TabsList>
 
-            {/* Overview Tab */}
-            <TabsContent value="overview" className="mt-6 space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Revenue vs Bookings Chart */}
-                <AnalyticsChart
-                  data={monthlyData}
-                  title="Monthly Revenue Trend"
-                  type="area"
-                  dataKey="revenue"
-                  height={300}
-                />
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6">
+            {dashboardStats && (
+              <>
+                {/* Key Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        Total Users
+                      </CardTitle>
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {dashboardStats.users.total.toLocaleString()}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        +{dashboardStats.users.newThisMonth} this month
+                      </p>
+                    </CardContent>
+                  </Card>
 
-                {/* Booking Status Distribution */}
-                <StatusPieChart
-                  data={statusChartData}
-                  title="Booking Status Distribution"
-                />
-              </div>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        Properties
+                      </CardTitle>
+                      <Home className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {dashboardStats.properties.total.toLocaleString()}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {dashboardStats.properties.active} active
+                      </p>
+                    </CardContent>
+                  </Card>
 
-              {/* Top Destinations */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPinIcon className="h-5 w-5" />
-                    Top Destinations
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        Revenue
+                      </CardTitle>
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        ₹
+                        {(
+                          dashboardStats.bookings.revenue / 100
+                        ).toLocaleString()}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        ₹
+                        {(
+                          dashboardStats.bookings.revenueThisMonth / 100
+                        ).toLocaleString()}{" "}
+                        this month
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        Bookings
+                      </CardTitle>
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">
+                        {dashboardStats.bookings.total.toLocaleString()}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        +{dashboardStats.bookings.thisMonth} this month
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Growth Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>User Growth</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <AnalyticsChart
+                        title="User Registration"
+                        type="line"
+                        dataKey="users"
+                        data={dashboardStats.growth.userGrowth}
+                      />
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Revenue Growth</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <AnalyticsChart
+                        title="Monthly Revenue"
+                        type="bar"
+                        dataKey="revenue"
+                        data={dashboardStats.growth.revenueGrowth}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Top Cities */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Cities</CardTitle>
+                    <CardDescription>
+                      Cities with most properties
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {dashboardStats.properties.topCities
+                        .slice(0, 5)
+                        .map((city, index) => (
+                          <div
+                            key={city.city}
+                            className="flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-pink-100">
+                                <MapPin className="h-4 w-4 text-pink-600" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{city.city}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {city.count} properties
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="secondary">#{index + 1}</Badge>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
+          {/* Users Tab */}
+          <TabsContent value="users" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>User Management</CardTitle>
+                <CardDescription>
+                  Manage platform users and hosts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {refreshing ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
+                  </div>
+                ) : (
                   <div className="space-y-4">
-                    {analytics.topDestinations.map((destination, index) => (
+                    {users.map((user) => (
                       <div
-                        key={destination.location}
-                        className="flex items-center justify-between"
+                        key={user.id}
+                        className="flex items-center justify-between p-4 border rounded-lg"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-semibold text-blue-600">
-                            {index + 1}
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center">
+                            <Users className="h-5 w-5 text-pink-600" />
                           </div>
                           <div>
-                            <div className="font-medium">
-                              {destination.location}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              {destination.count} bookings
+                            <p className="font-medium">
+                              {user.firstName} {user.lastName}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {user.email}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {user.isHost && (
+                                <Badge variant="secondary">Host</Badge>
+                              )}
+                              {user.isVerified && (
+                                <Badge variant="default">Verified</Badge>
+                              )}
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-semibold">
-                            {CURRENCY_SYMBOL}
-                            {destination.revenue.toLocaleString()}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Avg: {CURRENCY_SYMBOL}
-                            {Math.round(
-                              destination.revenue / destination.count,
-                            ).toLocaleString()}
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleVerifyUser(user.id)}
+                            disabled={user.isVerified}
+                          >
+                            {user.isVerified ? "Verified" : "Verify"}
+                          </Button>
                         </div>
                       </div>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Recent Bookings */}
-              <BookingTable
-                bookings={recentBookings.slice(0, 10)}
-                title="Recent Bookings (Last 30 Days)"
-              />
-            </TabsContent>
-
-            {/* Daily Analytics Tab */}
-            <TabsContent value="daily" className="mt-6 space-y-6">
-              <div className="flex gap-4">
-                <Select
-                  value={selectedYear.toString()}
-                  onValueChange={(value) => setSelectedYear(parseInt(value))}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableYears.map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={selectedMonth.toString()}
-                  onValueChange={(value) => setSelectedMonth(parseInt(value))}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {months.map((month, index) => (
-                      <SelectItem key={index} value={index.toString()}>
-                        {month}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnalyticsChart
-                  data={dailyData}
-                  title={`Daily Bookings - ${months[selectedMonth]} ${selectedYear}`}
-                  type="bar"
-                  dataKey="bookings"
-                />
-
-                <AnalyticsChart
-                  data={dailyData}
-                  title={`Daily Revenue - ${months[selectedMonth]} ${selectedYear}`}
-                  type="line"
-                  dataKey="revenue"
-                />
-              </div>
-
-              <BookingTable
-                bookings={allBookings.filter((booking) => {
-                  const bookingDate = new Date(booking.createdAt);
-                  return (
-                    bookingDate.getFullYear() === selectedYear &&
-                    bookingDate.getMonth() === selectedMonth
-                  );
-                })}
-                title={`Bookings for ${months[selectedMonth]} ${selectedYear}`}
-              />
-            </TabsContent>
-
-            {/* Monthly Analytics Tab */}
-            <TabsContent value="monthly" className="mt-6 space-y-6">
-              <div className="flex gap-4">
-                <Select
-                  value={selectedYear.toString()}
-                  onValueChange={(value) => setSelectedYear(parseInt(value))}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableYears.map((year) => (
-                      <SelectItem key={year} value={year.toString()}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnalyticsChart
-                  data={monthlyData}
-                  title={`Monthly Bookings - ${selectedYear}`}
-                  type="bar"
-                  dataKey="bookings"
-                />
-
-                <AnalyticsChart
-                  data={monthlyData}
-                  title={`Monthly Revenue - ${selectedYear}`}
-                  type="area"
-                  dataKey="revenue"
-                />
-              </div>
-
-              <BookingTable
-                bookings={allBookings.filter(
-                  (booking) =>
-                    new Date(booking.createdAt).getFullYear() === selectedYear,
                 )}
-                title={`All Bookings for ${selectedYear}`}
-              />
-            </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-            {/* Yearly Analytics Tab */}
-            <TabsContent value="yearly" className="mt-6 space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AnalyticsChart
-                  data={yearlyData}
-                  title="Yearly Bookings Trend"
-                  type="line"
-                  dataKey="bookings"
-                />
-
-                <AnalyticsChart
-                  data={yearlyData}
-                  title="Yearly Revenue Trend"
-                  type="area"
-                  dataKey="revenue"
-                />
-              </div>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Year-over-Year Growth</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {yearlyData.map((yearData, index) => {
-                      const previousYear = yearlyData[index - 1];
-                      const bookingGrowth = previousYear
-                        ? ((yearData.bookings - previousYear.bookings) /
-                            previousYear.bookings) *
-                          100
-                        : 0;
-                      const revenueGrowth = previousYear
-                        ? ((yearData.revenue - previousYear.revenue) /
-                            previousYear.revenue) *
-                          100
-                        : 0;
-
-                      return (
-                        <Card key={yearData.period}>
-                          <CardContent className="p-6">
-                            <h3 className="text-lg font-semibold mb-4">
-                              {yearData.period}
-                            </h3>
-                            <div className="space-y-3">
-                              <div>
-                                <div className="text-2xl font-bold">
-                                  {yearData.bookings}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  Total Bookings
-                                </div>
-                                {index > 0 && (
-                                  <div
-                                    className={`text-sm ${bookingGrowth >= 0 ? "text-green-600" : "text-red-600"}`}
-                                  >
-                                    {bookingGrowth >= 0 ? "+" : ""}
-                                    {bookingGrowth.toFixed(1)}% vs prev year
-                                  </div>
-                                )}
-                              </div>
-                              <div>
-                                <div className="text-2xl font-bold">
-                                  {CURRENCY_SYMBOL}
-                                  {yearData.revenue.toLocaleString()}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  Total Revenue
-                                </div>
-                                {index > 0 && (
-                                  <div
-                                    className={`text-sm ${revenueGrowth >= 0 ? "text-green-600" : "text-red-600"}`}
-                                  >
-                                    {revenueGrowth >= 0 ? "+" : ""}
-                                    {revenueGrowth.toFixed(1)}% vs prev year
-                                  </div>
-                                )}
+          {/* Properties Tab */}
+          <TabsContent value="properties" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Property Management</CardTitle>
+                <CardDescription>Manage property listings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {refreshing ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-600"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {properties.map((property) => (
+                      <div
+                        key={property.id}
+                        className="flex items-center justify-between p-4 border rounded-lg"
+                      >
+                        <div className="flex items-center gap-4">
+                          {property.images[0] && (
+                            <img
+                              src={property.images[0]}
+                              alt={property.title}
+                              className="w-16 h-16 rounded-lg object-cover"
+                            />
+                          )}
+                          <div>
+                            <p className="font-medium">{property.title}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {property.location.city},{" "}
+                              {property.location.state}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline">{property.type}</Badge>
+                              <div className="flex items-center gap-1">
+                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                <span className="text-xs">
+                                  {property.rating}
+                                </span>
                               </div>
                             </div>
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">
+                            ₹
+                            {(
+                              property.pricing.basePrice / 100
+                            ).toLocaleString()}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            per night
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </CardContent>
-              </Card>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-              <BookingTable
-                bookings={allBookings}
-                title="All Bookings (All Time)"
-              />
-            </TabsContent>
-          </Tabs>
-        </div>
-      </main>
+          {/* Bookings Tab */}
+          <TabsContent value="bookings" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Booking Management</CardTitle>
+                <CardDescription>Manage platform bookings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <BookingTable bookings={bookings} />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-      
+          {/* Analytics Tab */}
+          <TabsContent value="analytics" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Platform Analytics</CardTitle>
+                <CardDescription>
+                  Detailed platform performance metrics
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {dashboardStats && (
+                    <>
+                      <AnalyticsChart
+                        title="Property Growth"
+                        type="area"
+                        dataKey="properties"
+                        data={dashboardStats.growth.propertyGrowth}
+                      />
+                      <AnalyticsChart
+                        title="Host Growth"
+                        type="line"
+                        dataKey="hosts"
+                        data={dashboardStats.growth.userGrowth}
+                      />
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };
