@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,37 +16,74 @@ import {
   MessageCircleIcon,
   SettingsIcon,
 } from "lucide-react";
-import { mockProperties, mockBookings } from "@/lib/mockData";
+import {
+  propertyService,
+  bookingService,
+  userService,
+  analyticsService,
+  EVENT_TYPES,
+} from "@/services";
+import { Property, Booking } from "@/lib/types";
 import { CURRENCY_SYMBOL } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 
 const HostDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [hostProperties, setHostProperties] = useState<Property[]>([]);
+  const [hostBookings, setHostBookings] = useState<Booking[]>([]);
+  const [pendingBookings, setPendingBookings] = useState<Booking[]>([]);
+  const [confirmedBookings, setConfirmedBookings] = useState<Booking[]>([]);
+  const [hostStats, setHostStats] = useState<any>(null);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
-  // Mock current host ID
-  const hostId = "1";
+  useEffect(() => {
+    const fetchHostDashboard = async () => {
+      if (!user) return;
 
-  // Filter data for current host
-  const hostProperties = mockProperties.filter(
-    (property) => property.hostId === hostId,
-  );
-  const hostBookings = mockBookings.filter(
-    (booking) => booking.hostId === hostId,
-  );
+      try {
+        setLoading(true);
 
-  // Calculate stats
-  const totalEarnings = hostBookings
-    .filter(
-      (booking) =>
-        booking.status === "confirmed" || booking.status === "completed",
-    )
-    .reduce((sum, booking) => sum + booking.totalPrice, 0);
+        // Track dashboard visit
+        await analyticsService.trackPageView(user.id, {
+          page: "host_dashboard",
+        });
 
-  const pendingBookings = hostBookings.filter(
-    (booking) => booking.status === "pending",
-  );
-  const confirmedBookings = hostBookings.filter(
-    (booking) => booking.status === "confirmed",
-  );
+        // Fetch host properties
+        const properties = await propertyService.getPropertiesByHost(user.id);
+        setHostProperties(properties);
+
+        // Fetch host bookings
+        const bookings = await bookingService.getHostBookings(user.id);
+        setHostBookings(bookings);
+
+        // Filter booking statuses
+        const pending = bookings.filter(
+          (booking) => booking.status === "pending",
+        );
+        const confirmed = bookings.filter(
+          (booking) => booking.status === "confirmed",
+        );
+        setPendingBookings(pending);
+        setConfirmedBookings(confirmed);
+
+        // Fetch host statistics
+        const stats = await userService.getUserStats(user.id);
+        setHostStats(stats);
+
+        // Fetch dashboard data
+        const dashboard = await userService.getUserDashboardData(user.id);
+        setDashboardData(dashboard);
+      } catch (error) {
+        console.error("Error fetching host dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHostDashboard();
+  }, [user]);
 
   const averageRating =
     hostProperties.length > 0

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,41 +12,61 @@ import {
   MessageCircleIcon,
   StarIcon,
 } from "lucide-react";
-import { mockBookings } from "@/lib/mockData";
+import { bookingService, userService, analyticsService, EVENT_TYPES } from "@/services";
 import { BOOKING_STATUS_LABELS, CURRENCY_SYMBOL } from "@/lib/constants";
 import { Booking } from "@/lib/types";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 
 const GuestDashboard = () => {
   const [activeTab, setActiveTab] = useState("upcoming");
+  const [userBookings, setUserBookings] = useState<Booking[]>([]);
+  const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
+  const [pastBookings, setPastBookings] = useState<Booking[]>([]);
+  const [pendingBookings, setPendingBookings] = useState<Booking[]>([]);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
-  // Mock user data - in real app this would come from auth context
-  const currentUser = {
-    id: "2",
-    firstName: "John",
-    lastName: "Doe",
-    email: "john.doe@example.com",
-    avatar:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-  };
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!user) return;
 
-  // Filter bookings by current user
-  const userBookings = mockBookings.filter(
-    (booking) => booking.guestId === currentUser.id,
-  );
+      try {
+        setLoading(true);
 
-  const upcomingBookings = userBookings.filter((booking) => {
-    const checkInDate = new Date(booking.checkIn);
-    return checkInDate > new Date() && booking.status !== "cancelled";
-  });
+        // Track dashboard visit
+        await analyticsService.trackPageView(user.id, { page: 'guest_dashboard' });
 
-  const pastBookings = userBookings.filter((booking) => {
-    const checkOutDate = new Date(booking.checkOut);
-    return checkOutDate <= new Date() || booking.status === "completed";
-  });
+        // Fetch user bookings
+        const bookings = await bookingService.getGuestBookings(user.id);
+        setUserBookings(bookings);
 
-  const pendingBookings = userBookings.filter(
-    (booking) => booking.status === "pending",
+        // Fetch upcoming bookings
+        const upcoming = await bookingService.getUpcomingBookings(user.id, false);
+        setUpcomingBookings(upcoming);
+
+        // Fetch past bookings
+        const past = await bookingService.getPastBookings(user.id, false);
+        setPastBookings(past);
+
+        // Filter pending bookings
+        const pending = bookings.filter(booking => booking.status === "pending");
+        setPendingBookings(pending);
+
+        // Fetch dashboard stats
+        const dashboard = await userService.getUserDashboardData(user.id);
+        setDashboardData(dashboard);
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user]);
   );
 
   const BookingCard = ({ booking }: { booking: Booking }) => {
@@ -57,7 +77,7 @@ const GuestDashboard = () => {
     );
 
     return (
-      
+
       <Card className="mb-4">
         <CardContent className="p-6">
           <div className="flex gap-4">

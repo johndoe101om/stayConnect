@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { PropertyGallery } from "@/components/property/PropertyGallery";
 import { BookingCard } from "@/components/booking/BookingCard";
@@ -25,21 +26,76 @@ import {
   ShareIcon,
   HeartIcon,
 } from "lucide-react";
-import { mockProperties, mockReviews } from "@/lib/mockData";
+import {
+  propertyService,
+  reviewService,
+  analyticsService,
+  EVENT_TYPES,
+} from "@/services";
+import { Property, Review } from "@/lib/types";
 import { PROPERTY_TYPES } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
 
 const PropertyDetail = () => {
   const { id } = useParams<{ id: string }>();
-  const property = mockProperties.find((p) => p.id === id);
-  const propertyReviews = mockReviews.filter((r) => r.propertyId === id);
+  const [property, setProperty] = useState<Property | null>(null);
+  const [propertyReviews, setPropertyReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
-  if (!property) {
+  useEffect(() => {
+    const fetchPropertyData = async () => {
+      if (!id) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch property details
+        const propertyData = await propertyService.getPropertyById(id);
+        if (!propertyData) {
+          setError("Property not found");
+          return;
+        }
+
+        setProperty(propertyData);
+
+        // Track property view
+        await analyticsService.trackPropertyView(id, user?.id, "direct");
+
+        // Fetch property reviews
+        const reviewsData = await reviewService.getPropertyReviews(id);
+        setPropertyReviews(reviewsData.reviews);
+      } catch (error) {
+        console.error("Error fetching property:", error);
+        setError("Failed to load property details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPropertyData();
+  }, [id, user?.id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading property...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !property) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Property not found</h1>
           <p className="text-muted-foreground">
-            The property you're looking for doesn't exist.
+            {error || "The property you're looking for doesn't exist."}
           </p>
         </div>
       </div>

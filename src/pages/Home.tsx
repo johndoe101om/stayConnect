@@ -31,14 +31,54 @@ import {
   Car,
   Shield,
 } from "lucide-react";
-import { mockProperties } from "@/lib/mockData";
+import {
+  propertyService,
+  searchService,
+  analyticsService,
+  EVENT_TYPES,
+} from "@/services";
+import { Property } from "@/lib/types";
 
 const Home = () => {
   const [currentDestination, setCurrentDestination] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const [featuredProperties, setFeaturedProperties] = useState<Property[]>([]);
+  const [popularDestinations, setPopularDestinations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { user } = useAuth();
-  const featuredProperties = mockProperties.slice(0, 3);
+
+  useEffect(() => {
+    const fetchHomeData = async () => {
+      try {
+        setLoading(true);
+
+        // Track page view
+        await analyticsService.trackPageView(user?.id);
+
+        // Fetch featured properties (highest rated ones)
+        const { properties } = await propertyService.getProperties(
+          { minRating: 4.5 },
+          1,
+          6,
+        );
+        setFeaturedProperties(properties);
+
+        // Fetch popular destinations
+        const destinations = await searchService.getPopularDestinations(8);
+        setPopularDestinations(destinations);
+      } catch (error) {
+        console.error("Error fetching home data:", error);
+        // Fallback to empty arrays
+        setFeaturedProperties([]);
+        setPopularDestinations([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHomeData();
+  }, [user?.id]);
 
   const handleHostingClick = () => {
     if (user) {
@@ -324,7 +364,7 @@ const Home = () => {
                   asChild
                 >
                   <Link to="/search?propertyTypes=entire-home">
-                    🏙️ City Explorer
+                    ���️ City Explorer
                   </Link>
                 </Button>
                 <Button
@@ -377,7 +417,7 @@ const Home = () => {
                         properties: "1,890+ stays",
                         price: "from ₹2,800",
                         trending: true,
-                        emoji: "🏔️",
+                        emoji: "��️",
                       },
                       {
                         name: "Udaipur",
