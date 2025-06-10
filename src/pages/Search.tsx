@@ -12,20 +12,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Grid, List, Map } from "lucide-react";
-import { mockProperties } from "@/lib/mockData";
+import { searchService, analyticsService, EVENT_TYPES } from "@/services";
 import { SearchFilters as SearchFiltersType, Property } from "@/lib/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Search = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [properties, setProperties] = useState<Property[]>(mockProperties);
-  const [filteredProperties, setFilteredProperties] =
-    useState<Property[]>(mockProperties);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
   const [filters, setFilters] = useState<SearchFiltersType>({});
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [sortBy, setSortBy] = useState<string>("recommended");
+  const [sortBy, setSortBy] = useState<string>("relevance");
+  const [loading, setLoading] = useState(true);
+  const [totalResults, setTotalResults] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const { user } = useAuth();
 
-  // Initialize filters from URL params
+  // Initialize filters from URL params and fetch properties
   useEffect(() => {
     const urlFilters: SearchFiltersType = {};
 
@@ -33,6 +37,7 @@ const Search = () => {
     const checkIn = searchParams.get("checkIn");
     const checkOut = searchParams.get("checkOut");
     const guests = searchParams.get("guests");
+    const query = searchParams.get("query") || "";
 
     if (location) urlFilters.location = location;
     if (checkIn) urlFilters.checkIn = checkIn;
@@ -40,13 +45,47 @@ const Search = () => {
     if (guests) urlFilters.guests = parseInt(guests);
 
     setFilters(urlFilters);
-  }, [searchParams]);
 
-  // Filter properties based on current filters
+    // Fetch properties from backend
+    const fetchProperties = async () => {
+      try {
+        setLoading(true);
+
+        // Track search event
+        await analyticsService.trackSearch(
+          query,
+          urlFilters,
+          undefined,
+          user?.id,
+        );
+
+        const result = await searchService.searchProperties(
+          query,
+          urlFilters,
+          currentPage,
+          20,
+          sortBy as any,
+        );
+
+        setProperties(result.properties);
+        setFilteredProperties(result.properties);
+        setTotalResults(result.total);
+      } catch (error) {
+        console.error("Error fetching properties:", error);
+        setProperties([]);
+        setFilteredProperties([]);
+        setTotalResults(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProperties();
+  }, [searchParams, currentPage, sortBy, user?.id]);
+
+  // Update search when filters change
   useEffect(() => {
-    let filtered = [...properties];
-
-    // Filter by location
+    if (properties.length === 0) return;
     if (filters.location) {
       filtered = filtered.filter(
         (property) =>

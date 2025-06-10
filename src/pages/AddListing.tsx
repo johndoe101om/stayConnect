@@ -24,13 +24,18 @@ import {
   Shield,
   CreditCard,
 } from "lucide-react";
+import { propertyService, analyticsService, EVENT_TYPES } from "@/services";
 import { ListingFormData } from "@/lib/types";
 import { CURRENCY_SYMBOL } from "@/lib/constants";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/components/ui/use-toast";
 
 const AddListing = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const {
     register,
