@@ -1,14 +1,58 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { PropertyCard } from "@/components/property/PropertyCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Heart, Search, Compass, Home } from "lucide-react";
+import { Heart, Search, Compass, Home, Plus } from "lucide-react";
 import { useWishlist } from "@/contexts/WishlistContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { wishlistService, analyticsService, EVENT_TYPES } from "@/services";
+import { Wishlist as WishlistType, Property } from "@/lib/types";
 
 const Wishlist = () => {
   const { wishlistItems, clearWishlist } = useWishlist();
   const { user } = useAuth();
+  const [wishlists, setWishlists] = useState<WishlistType[]>([]);
+  const [selectedWishlist, setSelectedWishlist] = useState<WishlistType | null>(
+    null,
+  );
+  const [wishlistProperties, setWishlistProperties] = useState<Property[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchWishlists = async () => {
+      if (!user) return;
+
+      try {
+        setLoading(true);
+
+        // Track wishlist view
+        await analyticsService.trackPageView(user.id, { page: "wishlist" });
+
+        // Fetch user's wishlists
+        const userWishlists = await wishlistService.getUserWishlists(user.id);
+        setWishlists(userWishlists);
+
+        // If user has wishlists, select the first one
+        if (userWishlists.length > 0) {
+          const firstWishlist = await wishlistService.getWishlistById(
+            userWishlists[0].id,
+            true,
+          );
+          if (firstWishlist) {
+            setSelectedWishlist(firstWishlist);
+            setWishlistProperties(firstWishlist.properties || []);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching wishlists:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWishlists();
+  }, [user]);
 
   if (!user) {
     return (

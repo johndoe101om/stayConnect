@@ -1,31 +1,21 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-
-export interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  avatar?: string;
-  role: "guest" | "host" | "superadmin";
-  isVerified: boolean;
-  createdAt: string;
-}
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { User as SupabaseUser } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
+import { userService, analyticsService, EVENT_TYPES } from "@/services";
+import { User } from "@/lib/types";
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  signup: (userData: SignupData) => Promise<boolean>;
-  logout: () => void;
-  isLoading: boolean;
-  updateUser: (userData: Partial<User>) => void;
-}
-
-interface SignupData {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  role: "guest" | "host";
+  supabaseUser: SupabaseUser | null;
+  loading: boolean;
+  signUp: (
+    email: string,
+    password: string,
+    userData: { firstName: string; lastName: string },
+  ) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,138 +28,205 @@ export const useAuth = () => {
   return context;
 };
 
-// Mock users for demo
-const mockUsers: (User & { password: string })[] = [
-  {
-    id: "1",
-    email: "guest@demo.com",
-    password: "demo123",
-    firstName: "John",
-    lastName: "Doe",
-    avatar:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-    role: "guest",
-    isVerified: true,
-    createdAt: "2024-01-01",
-  },
-  {
-    id: "2",
-    email: "host@demo.com",
-    password: "demo123",
-    firstName: "Sarah",
-    lastName: "Wilson",
-    avatar:
-      "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
-    role: "host",
-    isVerified: true,
-    createdAt: "2024-01-01",
-  },
-  {
-    id: "3",
-    email: "admin@stayconnect.com",
-    password: "admin123",
-    firstName: "Admin",
-    lastName: "User",
-    avatar:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-    role: "superadmin",
-    isVerified: true,
-    createdAt: "2024-01-01",
-  },
-];
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored auth data on mount
-    const storedUser = localStorage.getItem("auth_user");
-    if (storedUser) {
+    // Get initial session
+    const getInitialSession = async () => {
       try {
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+        if (error) {
+          console.error("Error getting session:", error);
+          return;
+        }
+
+        if (session?.user) {
+          setSupabaseUser(session.user);
+          // Fetch user profile from our database
+          await loadUserProfile(session.user.id);
+        }
       } catch (error) {
-        localStorage.removeItem("auth_user");
+        console.error("Error in getInitialSession:", error);
+      } finally {
+        setLoading(false);
       }
-    }
-    setIsLoading(false);
-  }, []);
-
-  const login = async (email: string, password: string): Promise<boolean> => {
-    setIsLoading(true);
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const mockUser = mockUsers.find(
-      (u) => u.email === email && u.password === password,
-    );
-
-    if (mockUser) {
-      const { password: _, ...userWithoutPassword } = mockUser;
-      setUser(userWithoutPassword);
-      localStorage.setItem("auth_user", JSON.stringify(userWithoutPassword));
-      setIsLoading(false);
-      return true;
-    }
-
-    setIsLoading(false);
-    return false;
-  };
-
-  const signup = async (userData: SignupData): Promise<boolean> => {
-    setIsLoading(true);
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    // Check if user already exists
-    const existingUser = mockUsers.find((u) => u.email === userData.email);
-    if (existingUser) {
-      setIsLoading(false);
-      return false;
-    }
-
-    // Create new user
-    const newUser: User = {
-      id: Date.now().toString(),
-      email: userData.email,
-      firstName: userData.firstName,
-      lastName: userData.lastName,
-      role: userData.role,
-      isVerified: false,
-      createdAt: new Date().toISOString(),
     };
 
-    setUser(newUser);
-    localStorage.setItem("auth_user", JSON.stringify(newUser));
-    setIsLoading(false);
-    return true;
+    getInitialSession();
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      try {
+        if (session?.user) {
+          setSupabaseUser(session.user);
+          await loadUserProfile(session.user.id);
+
+          // Track login event
+          if (event === "SIGNED_IN") {
+            await analyticsService.trackEvent({
+              eventType: EVENT_TYPES.USER_LOGIN,
+              userId: session.user.id,
+              eventData: { method: "email" },
+            });
+          }
+        } else {
+          setSupabaseUser(null);
+          setUser(null);
+
+          // Track logout event
+          if (event === "SIGNED_OUT") {
+            await analyticsService.trackEvent({
+              eventType: EVENT_TYPES.USER_LOGOUT,
+              eventData: { timestamp: new Date().toISOString() },
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error in auth state change:", error);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const userProfile = await userService.getUserById(userId);
+      if (userProfile) {
+        setUser(userProfile);
+      }
+    } catch (error) {
+      console.error("Error loading user profile:", error);
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("auth_user");
+  const signUp = async (
+    email: string,
+    password: string,
+    userData: { firstName: string; lastName: string },
+  ) => {
+    try {
+      setLoading(true);
+
+      // Sign up with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Create user profile in our database
+        const userProfile = await userService.createUserProfile({
+          id: data.user.id,
+          email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+        });
+
+        setUser(userProfile);
+        setSupabaseUser(data.user);
+
+        // Track signup event
+        await analyticsService.trackEvent({
+          eventType: EVENT_TYPES.USER_SIGNUP,
+          userId: data.user.id,
+          eventData: { method: "email", email },
+        });
+      }
+    } catch (error: any) {
+      console.error("Error signing up:", error);
+      throw new Error(error.message || "Failed to create account");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateUser = (userData: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...userData };
+  const signIn = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        setSupabaseUser(data.user);
+        await loadUserProfile(data.user.id);
+      }
+    } catch (error: any) {
+      console.error("Error signing in:", error);
+      throw new Error(error.message || "Failed to sign in");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
+      setUser(null);
+      setSupabaseUser(null);
+    } catch (error: any) {
+      console.error("Error signing out:", error);
+      throw new Error(error.message || "Failed to sign out");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateProfile = async (data: Partial<User>) => {
+    try {
+      if (!user) throw new Error("No user logged in");
+
+      const updatedUser = await userService.updateUserProfile(user.id, {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        avatar: data.avatar,
+        phone: data.phone,
+      });
+
       setUser(updatedUser);
-      localStorage.setItem("auth_user", JSON.stringify(updatedUser));
+
+      // Track profile update
+      await analyticsService.trackEvent({
+        eventType: EVENT_TYPES.PROFILE_UPDATE,
+        userId: user.id,
+        eventData: { fields_updated: Object.keys(data) },
+      });
+    } catch (error: any) {
+      console.error("Error updating profile:", error);
+      throw new Error(error.message || "Failed to update profile");
     }
   };
 
   const value: AuthContextType = {
     user,
-    login,
-    signup,
-    logout,
-    isLoading,
-    updateUser,
+    supabaseUser,
+    loading,
+    signUp,
+    signIn,
+    signOut,
+    updateProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

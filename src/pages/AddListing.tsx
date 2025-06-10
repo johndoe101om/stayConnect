@@ -180,7 +180,13 @@ const AddListing = () => {
   };
 
   const onSubmit = async (data: ListingFormData) => {
-    console.log("Listing data:", data);
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to create a listing",
+      });
+      return;
+    }
 
     // Validate required fields
     if (
@@ -189,9 +195,11 @@ const AddListing = () => {
       !data.location.address ||
       !data.pricing.basePrice
     ) {
-      alert(
-        "Please complete all required fields before publishing your listing.",
-      );
+      toast({
+        title: "Error",
+        description:
+          "Please complete all required fields before publishing your listing.",
+      });
       return;
     }
 
