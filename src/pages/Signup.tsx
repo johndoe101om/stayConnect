@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,322 +15,263 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  HomeIcon,
-  EyeIcon,
-  EyeOffIcon,
-  CompassIcon,
-  AlertCircleIcon,
-  UserIcon,
-  BuildingIcon,
-} from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Eye, EyeOff, Mail, Lock, User, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
-const Signup = () => {
-  const location = useLocation();
-  const isHostingIntent = location.state?.hostingIntent;
-  const from = location.state?.from?.pathname || "/";
-
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    role: (isHostingIntent ? "host" : "guest") as "guest" | "host",
+const signupSchema = z
+  .object({
+    firstName: z.string().min(2, "First name must be at least 2 characters"),
+    lastName: z.string().min(2, "Last name must be at least 2 characters"),
+    email: z.string().email("Please enter a valid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string(),
+    agreeToTerms: z
+      .boolean()
+      .refine((val) => val === true, "You must agree to the terms"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
   });
+
+type SignupFormData = z.infer<typeof signupSchema>;
+
+const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState("");
-  const { signup, isLoading } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { signUp } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+  const from = location.state?.from?.pathname || "/";
+  const hostingIntent = location.state?.hostingIntent;
 
-    // Validation
-    if (
-      !formData.firstName ||
-      !formData.lastName ||
-      !formData.email ||
-      !formData.password
-    ) {
-      setError("Please fill in all fields");
-      return;
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setValue,
+    watch,
+  } = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema),
+  });
+
+  const watchedAgreeToTerms = watch("agreeToTerms");
+
+  const onSubmit = async (data: SignupFormData) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      await signUp(data.email, data.password, {
+        firstName: data.firstName,
+        lastName: data.lastName,
+      });
+
+      // Redirect to intended page or appropriate dashboard
+      if (hostingIntent) {
+        navigate("/add-listing");
+      } else {
+        navigate(from, { replace: true });
+      }
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
-    }
-
-    const success = await signup({
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      password: formData.password,
-      role: formData.role,
-    });
-
-    if (success) {
-      navigate(from, { replace: true });
-    } else {
-      setError("Email already exists or signup failed");
-    }
-  };
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 flex items-center justify-center p-4">
-      {/* Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <CompassIcon className="absolute top-20 left-20 h-16 w-16 text-white/10 animate-spin" />
-        <HomeIcon className="absolute bottom-20 right-20 h-12 w-12 text-white/10" />
-        <UserIcon className="absolute top-40 right-40 h-10 w-10 text-white/10" />
-        <div className="absolute top-32 right-32 w-32 h-32 border-2 border-white/10 rounded-full"></div>
-        <div className="absolute bottom-32 left-32 w-24 h-24 border-2 border-white/10 rotate-45"></div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl font-bold">
+            Create your account
+          </CardTitle>
+          <CardDescription>
+            {hostingIntent
+              ? "Join StayConnect as a host and start earning"
+              : "Join StayConnect and start exploring"}
+          </CardDescription>
+        </CardHeader>
 
-      <div className="w-full max-w-md relative z-10">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-3 mb-6">
-            <HomeIcon className="h-10 w-10 text-white" />
-            <span className="text-3xl font-black text-white">StayConnect</span>
-          </Link>
-          <h1 className="text-2xl font-bold text-white mb-2">
-            {isHostingIntent
-              ? "Start Your Hosting Journey!"
-              : "Join the Adventure!"}
-          </h1>
-          <p className="text-white/80">
-            {isHostingIntent
-              ? "Create your account to list your property and start earning"
-              : "Create your account and start exploring"}
-          </p>
-        </div>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-        <Card className="backdrop-blur-lg bg-white/95 border-white/20 shadow-2xl">
-          <CardHeader>
-            <CardTitle className="text-2xl text-center">
-              Create Account
-            </CardTitle>
-            <CardDescription className="text-center">
-              {isHostingIntent
-                ? "Set up your hosting account to start earning"
-                : "Choose your adventure type and get started"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {error && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertCircleIcon className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {isHostingIntent && (
-              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2 text-green-800 mb-2">
-                  <BuildingIcon className="h-4 w-4" />
-                  <span className="font-medium">Hosting Account</span>
-                </div>
-                <p className="text-sm text-green-700">
-                  You're signing up to become a host! You'll be able to list
-                  your property and start earning.
-                </p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Account Type - only show if not hosting intent */}
-              {!isHostingIntent && (
-                <>
-                  <div className="space-y-3">
-                    <Label>I want to...</Label>
-                    <RadioGroup
-                      value={formData.role}
-                      onValueChange={(value) =>
-                        handleInputChange("role", value)
-                      }
-                      className="grid grid-cols-2 gap-4"
-                    >
-                      <div className="flex items-center space-x-2 border rounded-lg p-4 hover:bg-gray-50 cursor-pointer">
-                        <RadioGroupItem value="guest" id="guest" />
-                        <Label
-                          htmlFor="guest"
-                          className="flex items-center gap-2 cursor-pointer flex-1"
-                        >
-                          <UserIcon className="h-4 w-4 text-blue-600" />
-                          <div>
-                            <div className="font-medium">Explore & Travel</div>
-                            <div className="text-xs text-gray-500">
-                              Find amazing places to stay
-                            </div>
-                          </div>
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2 border rounded-lg p-4 hover:bg-gray-50 cursor-pointer">
-                        <RadioGroupItem value="host" id="host" />
-                        <Label
-                          htmlFor="host"
-                          className="flex items-center gap-2 cursor-pointer flex-1"
-                        >
-                          <BuildingIcon className="h-4 w-4 text-green-600" />
-                          <div>
-                            <div className="font-medium">Host & Earn</div>
-                            <div className="text-xs text-gray-500">
-                              Share your space
-                            </div>
-                          </div>
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                  <Separator />
-                </>
-              )}
-
-              {/* Name Fields */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
                     id="firstName"
-                    placeholder="John"
-                    value={formData.firstName}
-                    onChange={(e) =>
-                      handleInputChange("firstName", e.target.value)
-                    }
-                    disabled={isLoading}
+                    placeholder="First name"
+                    className="pl-10"
+                    {...register("firstName")}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Doe"
-                    value={formData.lastName}
-                    onChange={(e) =>
-                      handleInputChange("lastName", e.target.value)
-                    }
-                    disabled={isLoading}
-                  />
-                </div>
+                {errors.firstName && (
+                  <p className="text-sm text-red-600">
+                    {errors.firstName.message}
+                  </p>
+                )}
               </div>
 
-              {/* Email */}
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="lastName">Last name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    id="lastName"
+                    placeholder="Last name"
+                    className="pl-10"
+                    {...register("lastName")}
+                  />
+                </div>
+                {errors.lastName && (
+                  <p className="text-sm text-red-600">
+                    {errors.lastName.message}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
                   id="email"
                   type="email"
-                  placeholder="john@example.com"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  disabled={isLoading}
+                  placeholder="Enter your email"
+                  className="pl-10"
+                  {...register("email")}
                 />
               </div>
+              {errors.email && (
+                <p className="text-sm text-red-600">{errors.email.message}</p>
+              )}
+            </div>
 
-              {/* Password */}
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Create a password"
-                    value={formData.password}
-                    onChange={(e) =>
-                      handleInputChange("password", e.target.value)
-                    }
-                    disabled={isLoading}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOffIcon className="h-4 w-4" />
-                    ) : (
-                      <EyeIcon className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              {/* Confirm Password */}
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    value={formData.confirmPassword}
-                    onChange={(e) =>
-                      handleInputChange("confirmPassword", e.target.value)
-                    }
-                    disabled={isLoading}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOffIcon className="h-4 w-4" />
-                    ) : (
-                      <EyeIcon className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Creating account..." : "Create Account"}
-              </Button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <span className="text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link
-                  to="/login"
-                  state={location.state}
-                  className="text-primary hover:underline font-medium"
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Create a password"
+                  className="pl-10 pr-10"
+                  {...register("password")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  Sign in
-                </Link>
-              </span>
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {errors.password && (
+                <p className="text-sm text-red-600">
+                  {errors.password.message}
+                </p>
+              )}
             </div>
 
-            <div className="mt-4 text-center">
-              <Link
-                to="/"
-                className="text-sm text-muted-foreground hover:underline"
-              >
-                ← Back to home
-              </Link>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  id="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm your password"
+                  className="pl-10 pr-10"
+                  {...register("confirmPassword")}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {errors.confirmPassword && (
+                <p className="text-sm text-red-600">
+                  {errors.confirmPassword.message}
+                </p>
+              )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="terms"
+                checked={watchedAgreeToTerms}
+                onCheckedChange={(checked) =>
+                  setValue("agreeToTerms", !!checked)
+                }
+              />
+              <Label htmlFor="terms" className="text-sm">
+                I agree to the{" "}
+                <Link to="/terms" className="text-pink-600 hover:underline">
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link to="/privacy" className="text-pink-600 hover:underline">
+                  Privacy Policy
+                </Link>
+              </Label>
+            </div>
+            {errors.agreeToTerms && (
+              <p className="text-sm text-red-600">
+                {errors.agreeToTerms.message}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full bg-pink-600 hover:bg-pink-700"
+              disabled={isLoading}
+            >
+              {isLoading ? "Creating account..." : "Create account"}
+            </Button>
+          </form>
+
+          <div className="mt-6">
+            <Separator className="my-4" />
+            <p className="text-center text-sm text-gray-600">
+              Already have an account?{" "}
+              <Link
+                to="/login"
+                state={{ from: location.state?.from }}
+                className="text-pink-600 hover:text-pink-700 font-medium hover:underline"
+              >
+                Sign in
+              </Link>
+            </p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
