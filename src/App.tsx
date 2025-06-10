@@ -11,24 +11,25 @@ import { Footer } from "./components/layout/Footer";
 import { AnalyticsChart } from "./components/admin/AnalyticsChart";
 
 // Page Imports
-import {Home} from "./pages/Home";
-import {Search} from "./pages/Search";
-import {MapSearch} from "./components/search/MapSearch";
-import {PropertyDetail} from "./pages/PropertyDetail";
+import { Home } from "./pages/Home";
+import { Search } from "./pages/Search";
+import { MapSearch } from "./components/search/MapSearch";
+import { PropertyDetail } from "./pages/PropertyDetail";
+import { Experiences } from "./pages/Experiences";
 import BookingPayment from "./pages/BookingPayment";
-import {BookingConfirmation} from "./pages/BookingConfirmation";
+import { BookingConfirmation } from "./pages/BookingConfirmation";
 import GuestDashboard from "./pages/GuestDashboard";
 import HostDashboard from "./pages/HostDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
-import {AddListing} from "./pages/AddListing";
+import { AddListing } from "./pages/AddListing";
 import Wishlist from "./pages/Wishlist";
-import {Profile} from "./pages/Profile";
-import {Settings} from "./pages/Settings";
+import { Profile } from "./pages/Profile";
+import { Settings } from "./pages/Settings";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import SuperAdminLogin from "./pages/SuperAdminLogin";
 import NotFound from "./pages/NotFound";
-import {SocialHub} from "./pages/SocialHub";
+import { SocialHub } from "./pages/SocialHub";
 
 // Support & Help Pages
 import HelpCenter from "./pages/HelpCenter";
@@ -70,13 +71,17 @@ const App = () => (
                   <Route path="/search" element={<Search />} />
                   <Route path="/map" element={<MapSearch />} />
                   <Route path="/property/:id" element={<PropertyDetail />} />
+                  <Route path="/experiences" element={<Experiences />} />
                   <Route path="/booking" element={<BookingPayment />} />
-                  
+
                   {/* Authentication Routes */}
                   <Route path="/login" element={<Login />} />
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/sa-login" element={<SuperAdminLogin />} />
-                  <Route path="/super-admin-login" element={<SuperAdminLogin />} />
+                  <Route
+                    path="/super-admin-login"
+                    element={<SuperAdminLogin />}
+                  />
 
                   {/* Protected Routes */}
                   <Route
@@ -213,14 +218,23 @@ const App = () => (
                   {/* Support & Help Routes */}
                   <Route path="/help" element={<HelpCenter />} />
                   <Route path="/safety" element={<SafetyInformation />} />
-                  <Route path="/cancellation" element={<CancellationOptions />} />
-                  <Route path="/disability-support" element={<DisabilitySupport />} />
+                  <Route
+                    path="/cancellation"
+                    element={<CancellationOptions />}
+                  />
+                  <Route
+                    path="/disability-support"
+                    element={<DisabilitySupport />}
+                  />
                   <Route path="/contact" element={<ContactUs />} />
 
                   {/* Host Resource Routes */}
                   <Route path="/host-resources" element={<HostResources />} />
                   <Route path="/community-forum" element={<CommunityForum />} />
-                  <Route path="/responsible-hosting" element={<ResponsibleHosting />} />
+                  <Route
+                    path="/responsible-hosting"
+                    element={<ResponsibleHosting />}
+                  />
                   <Route path="/host-guarantee" element={<HostGuarantee />} />
 
                   {/* Company Routes */}
@@ -229,7 +243,10 @@ const App = () => (
                   <Route path="/press" element={<Press />} />
                   <Route path="/investors" element={<Investors />} />
                   <Route path="/terms" element={<TermsOfService />} />
-                  <Route path="/terms-of-service" element={<TermsOfService />} />
+                  <Route
+                    path="/terms-of-service"
+                    element={<TermsOfService />}
+                  />
                   <Route path="/privacy" element={<PrivacyPolicy />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
