@@ -12,7 +12,12 @@ import {
   MessageCircleIcon,
   StarIcon,
 } from "lucide-react";
-import { bookingService, userService, analyticsService, EVENT_TYPES } from "@/services";
+import {
+  bookingService,
+  userService,
+  analyticsService,
+  EVENT_TYPES,
+} from "@/services";
 import { BOOKING_STATUS_LABELS, CURRENCY_SYMBOL } from "@/lib/constants";
 import { Booking } from "@/lib/types";
 import { format } from "date-fns";
@@ -36,14 +41,19 @@ const GuestDashboard = () => {
         setLoading(true);
 
         // Track dashboard visit
-        await analyticsService.trackPageView(user.id, { page: 'guest_dashboard' });
+        await analyticsService.trackPageView(user.id, {
+          page: "guest_dashboard",
+        });
 
         // Fetch user bookings
         const bookings = await bookingService.getGuestBookings(user.id);
         setUserBookings(bookings);
 
         // Fetch upcoming bookings
-        const upcoming = await bookingService.getUpcomingBookings(user.id, false);
+        const upcoming = await bookingService.getUpcomingBookings(
+          user.id,
+          false,
+        );
         setUpcomingBookings(upcoming);
 
         // Fetch past bookings
@@ -51,15 +61,16 @@ const GuestDashboard = () => {
         setPastBookings(past);
 
         // Filter pending bookings
-        const pending = bookings.filter(booking => booking.status === "pending");
+        const pending = bookings.filter(
+          (booking) => booking.status === "pending",
+        );
         setPendingBookings(pending);
 
         // Fetch dashboard stats
         const dashboard = await userService.getUserDashboardData(user.id);
         setDashboardData(dashboard);
-
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        console.error("Error fetching dashboard data:", error);
       } finally {
         setLoading(false);
       }
@@ -67,7 +78,6 @@ const GuestDashboard = () => {
 
     fetchDashboardData();
   }, [user]);
-  );
 
   const BookingCard = ({ booking }: { booking: Booking }) => {
     const checkInDate = new Date(booking.checkIn);
@@ -77,7 +87,6 @@ const GuestDashboard = () => {
     );
 
     return (
-
       <Card className="mb-4">
         <CardContent className="p-6">
           <div className="flex gap-4">
