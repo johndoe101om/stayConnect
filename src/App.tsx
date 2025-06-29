@@ -11,7 +11,7 @@ import { Footer } from "./components/layout/Footer";
 import { AnalyticsChart } from "./components/admin/AnalyticsChart";
 
 // Page Imports
-import { Home } from "./pages/Home";
+import Home  from "./pages/Home";
 import { Search } from "./pages/Search";
 import { MapSearch } from "./components/search/MapSearch";
 import { PropertyDetail } from "./pages/PropertyDetail";
