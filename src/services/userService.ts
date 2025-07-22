@@ -33,6 +33,11 @@ export const userService = {
 
       if (error) {
         if (error.code === "PGRST116") return null;
+        if (error.code === "42P01") {
+          // Table doesn't exist yet
+          console.warn("Users table not found. Please apply database schema.");
+          return null;
+        }
         throw error;
       }
 

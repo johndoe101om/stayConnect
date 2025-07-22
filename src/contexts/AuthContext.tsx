@@ -108,7 +108,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setUser(userProfile);
       }
     } catch (error) {
-      console.error("Error loading user profile:", error);
+      // Don't throw error if database tables don't exist yet
+      console.warn("User profile not available:", error);
     }
   };
 

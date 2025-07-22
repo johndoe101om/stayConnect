@@ -166,6 +166,45 @@ export const propertyService = {
     }
   },
 
+  // Get featured properties (top-rated properties for homepage)
+  async getFeaturedProperties(limit = 6): Promise<Property[]> {
+    try {
+      const { data, error } = await supabase
+        .from("properties")
+        .select(
+          `
+          *,
+          users:host_id (
+            id,
+            first_name,
+            last_name,
+            avatar,
+            rating,
+            review_count,
+            is_verified
+          )
+        `,
+        )
+        .eq("is_active", true)
+        .gte("rating", 4.5)
+        .order("rating", { ascending: false })
+        .order("review_count", { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      return (
+        data?.map((property) =>
+          transformPropertyFromDB(property, property.users),
+        ) || []
+      );
+    } catch (error) {
+      // Return empty array if tables don't exist yet
+      console.warn("Featured properties not available:", handleSupabaseError(error));
+      return [];
+    }
+  },
+
   // Get property by ID
   async getPropertyById(id: string): Promise<Property | null> {
     try {

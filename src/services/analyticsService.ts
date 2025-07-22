@@ -99,8 +99,8 @@ export const analyticsService = {
 
       await supabase.from("analytics_events").insert([eventData]);
     } catch (error) {
-      // Don't throw errors for analytics tracking to avoid breaking user experience
-      console.error("Error tracking event:", error);
+      // Silently fail if analytics table doesn't exist yet
+      // Don't log error to avoid console spam during development
     }
   },
 

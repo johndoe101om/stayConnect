@@ -41,7 +41,7 @@ const Home = () => {
         setFeaturedProperties(properties);
       } catch (error) {
         console.error("Error fetching home data:", error);
-        // Set empty array as fallback
+        // Set empty array as fallback and don't throw error to user
         setFeaturedProperties([]);
       } finally {
         setLoading(false);
