@@ -25,7 +25,7 @@ const SuperAdminLogin = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const { login, isLoading } = useAuth();
+  const { signIn, loading } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,7 +37,7 @@ const SuperAdminLogin = () => {
       return;
     }
 
-    const success = await login(email, password);
+    const success = await signIn(email, password);
     if (success) {
       // Check if user is super admin
       const storedUser = localStorage.getItem("auth_user");
@@ -126,7 +126,7 @@ const SuperAdminLogin = () => {
                     placeholder="Enter admin password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
+                    disabled={loading}
                     className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-400"
                   />
                   <Button
@@ -148,9 +148,9 @@ const SuperAdminLogin = () => {
               <Button
                 type="submit"
                 className="w-full bg-red-600 hover:bg-red-700 text-white"
-                disabled={isLoading}
+                disabled={loading}
               >
-                {isLoading ? "Authenticating..." : "Access Admin Panel"}
+                {loading ? "Authenticating..." : "Access Admin Panel"}
               </Button>
             </form>
 

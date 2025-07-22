@@ -267,7 +267,7 @@ const HostDashboard = () => {
                     </p>
                     <p className="text-2xl font-bold">
                       {CURRENCY_SYMBOL}
-                      {totalEarnings.toLocaleString()}
+                      {hostStats?.totalEarnings?.toLocaleString() || "0"}
                     </p>
                   </div>
                   <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
@@ -448,7 +448,7 @@ const HostDashboard = () => {
                         </span>
                         <span className="font-semibold">
                           {CURRENCY_SYMBOL}
-                          {totalEarnings.toLocaleString()}
+                          {hostStats?.totalEarnings?.toLocaleString() || "0"}
                         </span>
                       </div>
                       <div className="pt-2 border-t">

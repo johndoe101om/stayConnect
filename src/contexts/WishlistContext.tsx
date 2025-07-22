@@ -7,12 +7,14 @@ import { toast } from "@/components/ui/use-toast";
 interface WishlistContextType {
   wishlistItems: Property[];
   wishlists: Wishlist[];
+  wishlistCount: number;
   loading: boolean;
   addToWishlist: (property: Property, wishlistId?: string) => Promise<void>;
   removeFromWishlist: (
     propertyId: string,
     wishlistId?: string,
   ) => Promise<void>;
+  toggleWishlist: (property: Property) => Promise<void>;
   isInWishlist: (propertyId: string) => boolean;
   clearWishlist: (wishlistId?: string) => Promise<void>;
   createWishlist: (name: string, description?: string) => Promise<Wishlist>;
@@ -218,6 +220,14 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const toggleWishlist = async (property: Property) => {
+    if (isInWishlist(property.id)) {
+      await removeFromWishlist(property.id);
+    } else {
+      await addToWishlist(property);
+    }
+  };
+
   const isInWishlist = (propertyId: string): boolean => {
     return wishlistItems.some((item) => item.id === propertyId);
   };
@@ -308,9 +318,11 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({
   const value: WishlistContextType = {
     wishlistItems,
     wishlists,
+    wishlistCount: wishlistItems.length,
     loading,
     addToWishlist,
     removeFromWishlist,
+    toggleWishlist,
     isInWishlist,
     clearWishlist,
     createWishlist,

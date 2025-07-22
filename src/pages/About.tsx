@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import satyam from "../../public/satyam.jpg";
 import {
   HomeIcon,
   UsersIcon,
@@ -75,7 +74,7 @@ const About = () => {
   "name": "Satyam Chaudhary",
   "position": "CEO & Co-Founder",
   "description": "Former hospitality executive with 15+ years experience in travel technology",
-  "avatar": satyam,
+  "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
   "background": "Techwaukee"
 },
     {

@@ -86,6 +86,9 @@ const Search = () => {
   // Update search when filters change
   useEffect(() => {
     if (properties.length === 0) return;
+    
+    let filtered = [...properties];
+    
     if (filters.location) {
       filtered = filtered.filter(
         (property) =>
