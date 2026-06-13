@@ -30,6 +30,13 @@ public sealed class UsersController : ControllerBase
         return user is null ? NotFound() : Ok(Map(user));
     }
 
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+    {
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, ct);
+        return user is null ? NotFound() : Ok(Map(user));
+    }
+
     [Authorize]
     [HttpPut("me")]
     public async Task<IActionResult> UpdateMe(UpdateProfileRequest request, CancellationToken ct)
@@ -77,6 +84,25 @@ public sealed class UsersController : ControllerBase
         var total = await query.CountAsync(ct);
         var hosts = await query.OrderByDescending(x => x.Rating).Skip((page - 1) * limit).Take(limit).Select(x => Map(x)).ToListAsync(ct);
         return Ok(new { hosts, total });
+    }
+
+    [Authorize]
+    [HttpGet("{id:guid}/stats")]
+    public async Task<IActionResult> Stats(Guid id, CancellationToken ct)
+    {
+        var bookings = await _db.Bookings.AsNoTracking().Where(x => x.HostId == id).ToListAsync(ct);
+        var activeListings = await _db.Properties.AsNoTracking().CountAsync(x => x.HostId == id && x.IsActive, ct);
+        var completedBookings = bookings.Where(x => x.Status == "completed").ToList();
+
+        return Ok(new
+        {
+            totalBookings = completedBookings.Count,
+            totalEarnings = completedBookings.Sum(x => x.TotalPrice),
+            averageRating = await _db.Users.Where(x => x.Id == id).Select(x => x.Rating ?? 0).FirstOrDefaultAsync(ct),
+            responseRate = await _db.Users.Where(x => x.Id == id).Select(x => x.ResponseRate ?? 0).FirstOrDefaultAsync(ct),
+            activeListings,
+            totalGuests = completedBookings.Sum(x => x.Guests)
+        });
     }
 
     private static AuthUserResponse Map(AppUser user) => new(
