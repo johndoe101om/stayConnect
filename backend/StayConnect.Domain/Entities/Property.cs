@@ -5,7 +5,7 @@ namespace StayConnect.Domain.Entities;
 
 public sealed class Property : AuditableEntity
 {
-    private Property()
+    public Property()
     {
     }
 
