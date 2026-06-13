@@ -10,6 +10,11 @@ public sealed class Property : AuditableEntity
     }
 
     public Property(string title, string description, string address, string city, decimal monthlyRent, PropertyType type)
+        : this(title, description, address, city, monthlyRent, type.ToString())
+    {
+    }
+
+    public Property(string title, string description, string address, string city, decimal monthlyRent, string type)
     {
         Title = title.Trim();
         Description = description.Trim();
@@ -18,7 +23,7 @@ public sealed class Property : AuditableEntity
         State = string.Empty;
         Country = "India";
         BasePrice = monthlyRent;
-        Type = type.ToString();
+        Type = type;
         HostId = Guid.Empty;
         IsActive = true;
     }
@@ -55,6 +60,11 @@ public sealed class Property : AuditableEntity
 
     public void SetDetails(string title, string description, string address, string city, decimal monthlyRent, PropertyType type)
     {
+        SetDetails(title, description, address, city, monthlyRent, type.ToString());
+    }
+
+    public void SetDetails(string title, string description, string address, string city, decimal monthlyRent, string type)
+    {
         if (string.IsNullOrWhiteSpace(title)) throw new ArgumentException("Property title is required.", nameof(title));
         if (string.IsNullOrWhiteSpace(address)) throw new ArgumentException("Property address is required.", nameof(address));
         if (string.IsNullOrWhiteSpace(city)) throw new ArgumentException("Property city is required.", nameof(city));
@@ -65,7 +75,7 @@ public sealed class Property : AuditableEntity
         Address = address.Trim();
         City = city.Trim();
         BasePrice = monthlyRent;
-        Type = type.ToString();
+        Type = type;
         MarkUpdated();
     }
 
