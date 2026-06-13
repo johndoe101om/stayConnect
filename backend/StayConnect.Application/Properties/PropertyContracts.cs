@@ -1,5 +1,3 @@
-using StayConnect.Domain.Enums;
-
 namespace StayConnect.Application.Properties;
 
 public sealed record CreatePropertyRequest(
@@ -8,7 +6,7 @@ public sealed record CreatePropertyRequest(
     string Address,
     string City,
     decimal MonthlyRent,
-    PropertyType Type);
+    string Type);
 
 public sealed record UpdatePropertyRequest(
     string Title,
@@ -16,7 +14,7 @@ public sealed record UpdatePropertyRequest(
     string Address,
     string City,
     decimal MonthlyRent,
-    PropertyType Type);
+    string Type);
 
 public sealed record PropertyResponse(
     Guid Id,
@@ -25,6 +23,6 @@ public sealed record PropertyResponse(
     string Address,
     string City,
     decimal MonthlyRent,
-    PropertyType Type,
+    string Type,
     bool IsActive,
     DateTime CreatedAtUtc);
