@@ -5,24 +5,65 @@ namespace StayConnect.Domain.Entities;
 
 public sealed class Property : AuditableEntity
 {
-    private Property()
+    public Property()
     {
     }
 
     public Property(string title, string description, string address, string city, decimal monthlyRent, PropertyType type)
+        : this(title, description, address, city, monthlyRent, type.ToString())
     {
-        SetDetails(title, description, address, city, monthlyRent, type);
     }
 
-    public string Title { get; private set; } = string.Empty;
-    public string Description { get; private set; } = string.Empty;
-    public string Address { get; private set; } = string.Empty;
-    public string City { get; private set; } = string.Empty;
-    public decimal MonthlyRent { get; private set; }
-    public PropertyType Type { get; private set; }
-    public bool IsActive { get; private set; } = true;
+    public Property(string title, string description, string address, string city, decimal monthlyRent, string type)
+    {
+        Title = title.Trim();
+        Description = description.Trim();
+        Address = address.Trim();
+        City = city.Trim();
+        State = string.Empty;
+        Country = "India";
+        BasePrice = monthlyRent;
+        Type = type;
+        HostId = Guid.Empty;
+        IsActive = true;
+    }
+
+    public Guid HostId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string Type { get; set; } = "private-room";
+    public string Address { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string Country { get; set; } = "India";
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+    public decimal BasePrice { get; set; }
+    public decimal CleaningFee { get; set; }
+    public decimal ServiceFee { get; set; }
+    public string Currency { get; set; } = "INR";
+    public int Guests { get; set; }
+    public int Bedrooms { get; set; }
+    public int Beds { get; set; }
+    public int Bathrooms { get; set; }
+    public string[] Amenities { get; set; } = [];
+    public string[] Images { get; set; } = [];
+    public int MinStay { get; set; } = 1;
+    public int MaxStay { get; set; } = 30;
+    public bool InstantBook { get; set; }
+    public string[] Rules { get; set; } = [];
+    public decimal? Rating { get; set; }
+    public int ReviewCount { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    public decimal MonthlyRent => BasePrice;
 
     public void SetDetails(string title, string description, string address, string city, decimal monthlyRent, PropertyType type)
+    {
+        SetDetails(title, description, address, city, monthlyRent, type.ToString());
+    }
+
+    public void SetDetails(string title, string description, string address, string city, decimal monthlyRent, string type)
     {
         if (string.IsNullOrWhiteSpace(title)) throw new ArgumentException("Property title is required.", nameof(title));
         if (string.IsNullOrWhiteSpace(address)) throw new ArgumentException("Property address is required.", nameof(address));
@@ -33,7 +74,7 @@ public sealed class Property : AuditableEntity
         Description = description.Trim();
         Address = address.Trim();
         City = city.Trim();
-        MonthlyRent = monthlyRent;
+        BasePrice = monthlyRent;
         Type = type;
         MarkUpdated();
     }

@@ -1,13 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { User as SupabaseUser } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
-import { userService, analyticsService, EVENT_TYPES } from "@/services";
+import { apiRequest, tokenStorageKey } from "@/lib/apiClient";
 import { User } from "@/lib/types";
+
+interface AuthResponse {
+  token: string;
+  user: User;
+}
 
 interface AuthContextType {
   user: User | null;
-  supabaseUser: SupabaseUser | null;
+  supabaseUser: null;
   loading: boolean;
+  isLoading: boolean;
   signUp: (
     email: string,
     password: string,
@@ -32,86 +36,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
-        if (error) {
-          console.error("Error getting session:", error);
-          return;
-        }
+    const loadSession = async () => {
+      const token = localStorage.getItem(tokenStorageKey);
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-        if (session?.user) {
-          setSupabaseUser(session.user);
-          // Fetch user profile from our database
-          await loadUserProfile(session.user.id);
-        }
+      try {
+        const profile = await apiRequest<User>("/users/me");
+        setUser(profile);
       } catch (error) {
-        console.error("Error in getInitialSession:", error);
+        console.warn("Stored session is no longer valid:", error);
+        localStorage.removeItem(tokenStorageKey);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
 
-    getInitialSession();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      try {
-        if (session?.user) {
-          setSupabaseUser(session.user);
-          await loadUserProfile(session.user.id);
-
-          // Track login event
-          if (event === "SIGNED_IN") {
-            await analyticsService.trackEvent({
-              eventType: EVENT_TYPES.USER_LOGIN,
-              userId: session.user.id,
-              eventData: { method: "email" },
-            });
-          }
-        } else {
-          setSupabaseUser(null);
-          setUser(null);
-
-          // Track logout event
-          if (event === "SIGNED_OUT") {
-            await analyticsService.trackEvent({
-              eventType: EVENT_TYPES.USER_LOGOUT,
-              eventData: { timestamp: new Date().toISOString() },
-            });
-          }
-        }
-      } catch (error) {
-        console.error("Error in auth state change:", error);
-      } finally {
-        setLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    loadSession();
   }, []);
-
-  const loadUserProfile = async (userId: string) => {
-    try {
-      const userProfile = await userService.getUserById(userId);
-      if (userProfile) {
-        setUser(userProfile);
-      }
-    } catch (error) {
-      // Don't throw error if database tables don't exist yet
-      console.warn("User profile not available:", error);
-    }
-  };
 
   const signUp = async (
     email: string,
@@ -120,34 +68,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   ) => {
     try {
       setLoading(true);
-
-      // Sign up with Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        // Create user profile in our database
-        const userProfile = await userService.createUserProfile({
-          id: data.user.id,
+      const response = await apiRequest<AuthResponse>("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
           email,
+          password,
           firstName: userData.firstName,
           lastName: userData.lastName,
-        });
+        }),
+      });
 
-        setUser(userProfile);
-        setSupabaseUser(data.user);
-
-        // Track signup event
-        await analyticsService.trackEvent({
-          eventType: EVENT_TYPES.USER_SIGNUP,
-          userId: data.user.id,
-          eventData: { method: "email", email },
-        });
-      }
+      localStorage.setItem(tokenStorageKey, response.token);
+      setUser(response.user);
     } catch (error: any) {
       console.error("Error signing up:", error);
       throw new Error(error.message || "Failed to create account");
@@ -159,18 +91,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const signIn = async (email: string, password: string) => {
     try {
       setLoading(true);
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await apiRequest<AuthResponse>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
       });
 
-      if (error) throw error;
-
-      if (data.user) {
-        setSupabaseUser(data.user);
-        await loadUserProfile(data.user.id);
-      }
+      localStorage.setItem(tokenStorageKey, response.token);
+      setUser(response.user);
     } catch (error: any) {
       console.error("Error signing in:", error);
       throw new Error(error.message || "Failed to sign in");
@@ -180,40 +107,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const signOut = async () => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
-      setUser(null);
-      setSupabaseUser(null);
-    } catch (error: any) {
-      console.error("Error signing out:", error);
-      throw new Error(error.message || "Failed to sign out");
-    } finally {
-      setLoading(false);
-    }
+    localStorage.removeItem(tokenStorageKey);
+    setUser(null);
   };
 
   const updateProfile = async (data: Partial<User>) => {
     try {
       if (!user) throw new Error("No user logged in");
 
-      const updatedUser = await userService.updateUserProfile(user.id, {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        avatar: data.avatar,
-        phone: data.phone,
+      const updatedUser = await apiRequest<User>("/users/me", {
+        method: "PUT",
+        body: JSON.stringify({
+          firstName: data.firstName,
+          lastName: data.lastName,
+          avatar: data.avatar,
+          phone: data.phone,
+        }),
       });
 
       setUser(updatedUser);
-
-      // Track profile update
-      await analyticsService.trackEvent({
-        eventType: EVENT_TYPES.PROFILE_UPDATE,
-        userId: user.id,
-        eventData: { fields_updated: Object.keys(data) },
-      });
     } catch (error: any) {
       console.error("Error updating profile:", error);
       throw new Error(error.message || "Failed to update profile");
@@ -222,8 +134,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const value: AuthContextType = {
     user,
-    supabaseUser,
+    supabaseUser: null,
     loading,
+    isLoading: loading,
     signUp,
     signIn,
     signOut,

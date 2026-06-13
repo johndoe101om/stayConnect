@@ -10,6 +10,7 @@ export interface User {
   joinedDate: string;
   rating?: number;
   reviewCount: number;
+  role?: "guest" | "host" | "superadmin";
 }
 
 export interface Property {
@@ -103,7 +104,6 @@ export interface Message {
   read: boolean;
 }
 
-// Listing form data interface
 export interface ListingFormData {
   title: string;
   description: string;
