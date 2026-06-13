@@ -10,7 +10,6 @@ backend/
 ├── StayConnect.Application
 ├── StayConnect.Domain
 ├── StayConnect.Infrastructure
-├── StayConnect.Tests
 ├── Directory.Packages.props
 ├── StayConnect.sln
 └── docker-compose.yml
