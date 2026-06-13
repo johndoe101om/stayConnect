@@ -81,38 +81,71 @@ public sealed class PropertiesController : ControllerBase
         var userId = CurrentUserId();
         if (userId is null) return Unauthorized();
 
-        var property = new Property
-        {
-            HostId = userId.Value,
-            Title = request.Title.Trim(),
-            Description = request.Description.Trim(),
-            Type = request.Type,
-            Address = request.Location.Address,
-            City = request.Location.City,
-            State = request.Location.State,
-            Country = request.Location.Country,
-            Latitude = request.Location.Latitude,
-            Longitude = request.Location.Longitude,
-            Guests = request.Capacity.Guests,
-            Bedrooms = request.Capacity.Bedrooms,
-            Beds = request.Capacity.Beds,
-            Bathrooms = request.Capacity.Bathrooms,
-            Amenities = request.Amenities,
-            Images = request.Images,
-            BasePrice = request.Pricing.BasePrice,
-            CleaningFee = request.Pricing.CleaningFee,
-            ServiceFee = request.Pricing.ServiceFee,
-            Currency = request.Pricing.Currency,
-            MinStay = request.Availability.MinStay,
-            MaxStay = request.Availability.MaxStay,
-            InstantBook = request.Availability.InstantBook,
-            Rules = request.Rules,
-            IsActive = true
-        };
+        var property = new Property();
+        ApplyRequest(property, request);
+        property.HostId = userId.Value;
+        property.IsActive = true;
 
         _db.Properties.Add(property);
         await _db.SaveChangesAsync(ct);
         return CreatedAtAction(nameof(GetById), new { id = property.Id }, property);
+    }
+
+    [Authorize]
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, CreateListingRequest request, CancellationToken ct)
+    {
+        var userId = CurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        var property = await _db.Properties.FirstOrDefaultAsync(x => x.Id == id && x.HostId == userId.Value, ct);
+        if (property is null) return NotFound();
+
+        ApplyRequest(property, request);
+        await _db.SaveChangesAsync(ct);
+        return Ok(property);
+    }
+
+    [Authorize]
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Remove(Guid id, CancellationToken ct)
+    {
+        var userId = CurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        var property = await _db.Properties.FirstOrDefaultAsync(x => x.Id == id && x.HostId == userId.Value, ct);
+        if (property is null) return NotFound();
+
+        property.IsActive = false;
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    private static void ApplyRequest(Property property, CreateListingRequest request)
+    {
+        property.Title = request.Title.Trim();
+        property.Description = request.Description.Trim();
+        property.Type = request.Type;
+        property.Address = request.Location.Address;
+        property.City = request.Location.City;
+        property.State = request.Location.State;
+        property.Country = request.Location.Country;
+        property.Latitude = request.Location.Latitude;
+        property.Longitude = request.Location.Longitude;
+        property.Guests = request.Capacity.Guests;
+        property.Bedrooms = request.Capacity.Bedrooms;
+        property.Beds = request.Capacity.Beds;
+        property.Bathrooms = request.Capacity.Bathrooms;
+        property.Amenities = request.Amenities;
+        property.Images = request.Images;
+        property.BasePrice = request.Pricing.BasePrice;
+        property.CleaningFee = request.Pricing.CleaningFee;
+        property.ServiceFee = request.Pricing.ServiceFee;
+        property.Currency = request.Pricing.Currency;
+        property.MinStay = request.Availability.MinStay;
+        property.MaxStay = request.Availability.MaxStay;
+        property.InstantBook = request.Availability.InstantBook;
+        property.Rules = request.Rules;
     }
 
     private Guid? CurrentUserId()
