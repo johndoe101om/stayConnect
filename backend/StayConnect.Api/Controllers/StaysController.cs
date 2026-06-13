@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using StayConnect.Application.Properties;
+using Microsoft.EntityFrameworkCore;
+using StayConnect.Infrastructure.Persistence;
 
 namespace StayConnect.Api.Controllers;
 
@@ -7,31 +8,29 @@ namespace StayConnect.Api.Controllers;
 [Route("api/stays")]
 public sealed class StaysController : ControllerBase
 {
-    private readonly IPropertyService _propertyService;
+    private readonly ApplicationDbContext _db;
 
-    public StaysController(IPropertyService propertyService)
+    public StaysController(ApplicationDbContext db)
     {
-        _propertyService = propertyService;
+        _db = db;
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetActive()
+    public async Task<IActionResult> GetActive(CancellationToken ct)
     {
-        var data = await _propertyService.GetActiveAsync();
+        var data = await _db.Properties.AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .Take(50)
+            .ToListAsync(ct);
+
         return Ok(data);
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<IActionResult> GetById(Guid id)
+    public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var data = await _propertyService.GetByIdAsync(id);
+        var data = await _db.Properties.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && x.IsActive, ct);
         return data is null ? NotFound() : Ok(data);
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Create(CreatePropertyRequest request)
-    {
-        var data = await _propertyService.CreateAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = data.Id }, data);
     }
 }
