@@ -20,6 +20,7 @@ backend/
 ├── StayConnect.Application
 ├── StayConnect.Domain
 ├── StayConnect.Infrastructure
+│   └── Migrations
 ├── database
 ├── Directory.Packages.props
 ├── StayConnect.sln
@@ -30,6 +31,7 @@ backend/
 
 - ASP.NET Core Web API
 - Supabase PostgreSQL through EF Core/Npgsql
+- EF Core migrations for `users`, `properties`, and `bookings`
 - Backend-owned register/login
 - PBKDF2 password hashing
 - JWT authentication
@@ -41,15 +43,58 @@ backend/
 - CORS for the Vite frontend
 - Global exception middleware
 
-## Supabase setup
+## Supabase setup with EF Core migrations
 
-Run this SQL in the Supabase SQL editor before testing backend login:
+Set your backend connection string first. Use `backend/.env.example` as reference.
+
+For Supabase pooler, the connection string format is:
 
 ```txt
-backend/database/001_backend_auth_columns.sql
+Host=aws-1-ap-south-1.pooler.supabase.com;Port=6543;Database=postgres;Username=postgres.YOUR_PROJECT_REF;Password=YOUR_SUPABASE_DB_PASSWORD;Ssl Mode=Require;Trust Server Certificate=true
 ```
 
-Then set your backend connection string with environment variables. Use `backend/.env.example` as reference.
+Then apply the EF Core migration:
+
+```bash
+cd backend
+
+dotnet tool install --global dotnet-ef --version 8.0.11 || dotnet tool update --global dotnet-ef --version 8.0.11
+
+ASPNETCORE_ENVIRONMENT=Development dotnet ef database update \
+  --project StayConnect.Infrastructure/StayConnect.Infrastructure.csproj \
+  --startup-project StayConnect.Api/StayConnect.Api.csproj
+```
+
+The initial migration creates the EF-owned tables required by the current backend:
+
+```txt
+users
+properties
+bookings
+```
+
+The old raw SQL files in `backend/database` are fallback/manual setup scripts. Prefer EF migrations for normal development.
+
+## Add a new EF migration later
+
+After changing entities or `ApplicationDbContext`, run:
+
+```bash
+cd backend
+
+ASPNETCORE_ENVIRONMENT=Development dotnet ef migrations add MigrationName \
+  --project StayConnect.Infrastructure/StayConnect.Infrastructure.csproj \
+  --startup-project StayConnect.Api/StayConnect.Api.csproj \
+  --output-dir Migrations
+```
+
+Then apply it:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Development dotnet ef database update \
+  --project StayConnect.Infrastructure/StayConnect.Infrastructure.csproj \
+  --startup-project StayConnect.Api/StayConnect.Api.csproj
+```
 
 ## Run locally
 
@@ -57,7 +102,7 @@ Then set your backend connection string with environment variables. Use `backend
 cd backend
 dotnet restore StayConnect.sln
 dotnet build StayConnect.sln
-dotnet run --project StayConnect.Api/StayConnect.Api.csproj
+ASPNETCORE_ENVIRONMENT=Development dotnet run --project StayConnect.Api/StayConnect.Api.csproj
 ```
 
 Swagger runs in development mode at:
@@ -93,10 +138,10 @@ PATCH /api/bookings/{id}/payment
 
 ## Frontend setup
 
-The frontend now uses ASP.NET Core for auth. Set:
+The frontend now uses ASP.NET Core for auth. In local/Codespaces development, use the Vite proxy:
 
 ```txt
-VITE_API_URL=http://localhost:5000/api
+VITE_API_URL=/api
 ```
 
 For production, set `VITE_API_URL` to your deployed ASP.NET backend URL.
