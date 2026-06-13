@@ -1,0 +1,42 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StayConnect.Api", "StayConnect.Api\StayConnect.Api.csproj", "{2E5F9E2D-16C8-4DD5-9D87-64DD2A591501}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StayConnect.Application", "StayConnect.Application\StayConnect.Application.csproj", "{A93488F1-C5D4-45F2-9E04-8B792652C5AB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StayConnect.Domain", "StayConnect.Domain\StayConnect.Domain.csproj", "{92667FDB-6C68-40CC-A522-22592F4CB356}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StayConnect.Infrastructure", "StayConnect.Infrastructure\StayConnect.Infrastructure.csproj", "{9388C10E-8C8C-4A25-A844-51420480B1EA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StayConnect.Tests", "StayConnect.Tests\StayConnect.Tests.csproj", "{F7A73AFE-649F-497F-8334-B56869D796C9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2E5F9E2D-16C8-4DD5-9D87-64DD2A591501}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E5F9E2D-16C8-4DD5-9D87-64DD2A591501}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E5F9E2D-16C8-4DD5-9D87-64DD2A591501}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E5F9E2D-16C8-4DD5-9D87-64DD2A591501}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A93488F1-C5D4-45F2-9E04-8B792652C5AB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A93488F1-C5D4-45F2-9E04-8B792652C5AB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A93488F1-C5D4-45F2-9E04-8B792652C5AB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A93488F1-C5D4-45F2-9E04-8B792652C5AB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{92667FDB-6C68-40CC-A522-22592F4CB356}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{92667FDB-6C68-40CC-A522-22592F4CB356}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{92667FDB-6C68-40CC-A522-22592F4CB356}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{92667FDB-6C68-40CC-A522-22592F4CB356}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9388C10E-8C8C-4A25-A844-51420480B1EA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9388C10E-8C8C-4A25-A844-51420480B1EA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9388C10E-8C8C-4A25-A844-51420480B1EA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9388C10E-8C8C-4A25-A844-51420480B1EA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F7A73AFE-649F-497F-8334-B56869D796C9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F7A73AFE-649F-497F-8334-B56869D796C9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F7A73AFE-649F-497F-8334-B56869D796C9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F7A73AFE-649F-497F-8334-B56869D796C9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
