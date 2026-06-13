@@ -66,7 +66,8 @@ public sealed class BookingsController : ControllerBase
         var userId = CurrentUserId();
         if (userId is null) return Unauthorized();
 
-        var booking = await _db.Bookings.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && (x.GuestId == userId || x.HostId == userId), ct);
+        var currentUserId = userId.Value;
+        var booking = await _db.Bookings.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && (x.GuestId == currentUserId || x.HostId == currentUserId), ct);
         return booking is null ? NotFound() : Ok(booking);
     }
 
